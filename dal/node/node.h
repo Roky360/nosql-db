@@ -50,7 +50,7 @@ namespace dal {
         void deleteNode();
 
         /**
-         * Finds a key in the node's items.
+         * Finds a key in the node's items (performs binary search, since the keys in each node are sorted).
          * Puts in `idx` the index of the item with `key`, if found. If not found, puts the index where it should
          * be inserted.
          * @return If the key was found.

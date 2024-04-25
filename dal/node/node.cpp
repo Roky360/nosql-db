@@ -119,8 +119,8 @@ namespace dal {
     }
 
     bool Node::findKeyInNode(const string &key, int *idx) {
-        int leftPos = 0, rightPos = this->items.size() - 1;
-        int mid, cmpRes;
+        int leftPos = 0, rightPos = (int) this->items.size() - 1;
+        int mid = 0, cmpRes = 1;
 
         while (leftPos <= rightPos) {
             mid = (leftPos + rightPos) / 2;
@@ -146,24 +146,6 @@ namespace dal {
             *idx = mid + 1;
         }
         return false;
-
-//        int i;
-//        for (i = 0; i < this->items.size(); i++) {
-//            int res = this->items[i].key.compare(key);
-//
-//            if (res == 0) {
-//                *idx = i;
-//                return true;
-//            }
-//
-//            if (res > 0) {
-//                *idx = i;
-//                return false;
-//            }
-//        }
-//
-//        *idx = i;
-//        return false;
     }
 
     Node *Node::findKey(const string &key, int *idx, vector<int> *ancestorsIndexes, bool exact) {

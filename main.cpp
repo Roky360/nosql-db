@@ -7,11 +7,18 @@ using namespace std;
 using namespace dal;
 using namespace ioutils;
 
+#define DELETE_FILE
+
 int main() {
+    string fileName = "../test.db";
+#ifdef DELETE_FILE
+    remove(fileName.data());
+#endif
+
     Options options(Options::defaultOptions);
 //    options.minPageFillPercent = .0125;
 //    options.maxPageFillPercent = .025;
-    Dal dal("../test.db", options);
+    Dal dal(fileName, options);
 
     auto d = new Document();
     d->dal = &dal;
@@ -25,11 +32,11 @@ int main() {
 //    d->put("key5", "val5");
 //    d->put("key6", "val6");
 
-//    for (int i = 1; i <= 100; i++) {
-//        d->put("key" + to_string(i),"value" + to_string(i));
-//    }
+    for (int i = 1; i <= 100; i++) {
+        d->put("key" + to_string(i),"value" + to_string(i));
+    }
 
-    auto res = d->get("key10");
+    auto res = d->get("key1");
     if (!res) {
         cout << "not found!" << endl;
     } else {
