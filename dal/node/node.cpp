@@ -187,7 +187,8 @@ namespace dal {
         size += sizeof(char) * 2; // size of length of the key and value
         size += item.key.length();
         size += item.value.length();
-        size += isLeaf() ? 0 : sizeof(this->childNodes[idx]); // add size of reference to child node, if this node is not a leaf
+        size += isLeaf() ? 0
+                         : sizeof(this->childNodes[idx]); // add size of reference to child node, if this node is not a leaf
         return size;
     }
 
@@ -239,5 +240,162 @@ namespace dal {
         writeNodes(this, nodeToSplit, nullptr);
     }
 
+    bool Node::canSpareAnElement() {
+        return this->dal->getSplitIndex(this) != -1;
+    }
 
+    /* Deletion */
+
+    Node *Node::getPredecessor(int idx, vector<int> *affectedNodes) {
+        Node *cur = this->dal->getNode(this->childNodes[idx]);
+        if (!cur) {
+            return nullptr;
+        }
+
+        while (!cur->isLeaf()) {
+            int i = cur->childNodes.size() - 1;
+            cur = this->dal->getNode(cur->childNodes[i]);
+            if (!cur)
+                return nullptr;
+            if (affectedNodes)
+                affectedNodes->push_back(i);
+        }
+        return cur;
+    }
+
+    Node *Node::getSuccessor(int idx, vector<int> *affectedNodes) {
+        Node *cur = this->dal->getNode(this->childNodes[idx + 1]);
+        if (!cur) {
+            return nullptr;
+        }
+
+        while (!cur->isLeaf()) {
+            int i = 0;
+            cur = this->dal->getNode(cur->childNodes[i]);
+            if (!cur)
+                return nullptr;
+            if (affectedNodes)
+                affectedNodes->push_back(i);
+        }
+        return cur;
+    }
+
+    void Node::borrowFromLeft(int idx) {
+        Node *child = this->dal->getNode(this->childNodes[idx]);
+        Node *sibling = this->dal->getNode(this->childNodes[idx - 1]);
+        if (!child || !sibling)
+            throw runtime_error("Can't read nodes");
+
+        child->items.insert(child->items.begin(), NodeItem());
+        child->items[0] = this->items[idx - 1];
+
+        // move the sibling's last child we are about to move to the parent, to child
+        if (!child->isLeaf()) {
+            child->childNodes.insert(child->childNodes.begin(),
+                                     sibling->childNodes[sibling->childNodes.size() - 1]);
+        }
+
+        this->items[idx - 1] = sibling->items[sibling->items.size() - 1];
+
+        writeNodes(this, sibling, child, nullptr);
+        delete child;
+        delete sibling;
+    }
+
+    void Node::borrowFromRight(int idx) {
+        Node *child = this->dal->getNode(this->childNodes[idx]);
+        Node *sibling = this->dal->getNode(this->childNodes[idx + 1]);
+        if (!child || !sibling)
+            throw runtime_error("Can't read nodes");
+
+        child->items.push_back(this->items[idx]);
+
+        // move the sibling's last child we are about to move to the parent, to child
+        if (!child->isLeaf()) {
+            child->childNodes.push_back(sibling->childNodes[0]);
+        }
+
+        this->items[idx] = sibling->items[0];
+
+        writeNodes(this, sibling, child, nullptr);
+        delete child;
+        delete sibling;
+    }
+
+    void Node::removeItemFromLeaf(int idx) {
+        this->items.erase(this->items.begin() + idx);
+        this->write();
+    }
+
+    vector<int> Node::removeItemFromInternal(int idx) {
+        vector<int> affectedNodes;
+        Node *predecessor = getPredecessor(idx, &affectedNodes);
+        this->items[idx] = predecessor->items[predecessor->items.size() - 1];
+        predecessor->items.pop_back();
+
+        writeNodes(this, predecessor, nullptr);
+        return affectedNodes;
+    }
+
+    void Node::merge(int idx) {
+        Node *child = this->dal->getNode(this->childNodes[idx]);
+        Node *sibling = this->dal->getNode(this->childNodes[idx - 1]);
+        if (!child || !sibling)
+            throw runtime_error("Can't read nodes");
+
+        // take item from the parent, put in sibling
+        sibling->items.push_back(this->items[idx - 1]);
+        // move all items from child to sibling
+        sibling->items.insert(sibling->items.end(), child->items.begin(), child->items.end());
+        // if child is not a leaf, move also its children to the sibling
+        if (!child->isLeaf()) {
+            sibling->childNodes.insert(sibling->childNodes.end(), child->childNodes.begin(), child->childNodes.end());
+        }
+
+        // remove the item we took from parent, and the reference to child
+        this->childNodes.erase(this->childNodes.begin() + idx);
+        this->items.erase(this->items.begin() + (idx - 1));
+
+        child->deleteNode();
+        writeNodes(this, sibling, nullptr);
+    }
+
+    void Node::rebalanceAfterRemove(int unbalancedNodeIdx) {
+        // borrow from left
+        if (unbalancedNodeIdx != 0) {
+            Node *leftSibling = this->dal->getNode(this->childNodes[unbalancedNodeIdx - 1]);
+            if (!leftSibling)
+                // TODO: IO ERROR
+                exit(1);
+            if (leftSibling->canSpareAnElement()) {
+                borrowFromLeft(unbalancedNodeIdx);
+                delete leftSibling;
+                return;
+            }
+            delete leftSibling;
+        }
+
+        // borrow from right
+        if (unbalancedNodeIdx != this->childNodes.size() - 1) {
+            Node *rightSibling = this->dal->getNode(this->childNodes[unbalancedNodeIdx + 1]);
+            if (!rightSibling)
+                // TODO: IO ERROR
+                exit(1);
+            if (rightSibling->canSpareAnElement()) {
+                borrowFromRight(unbalancedNodeIdx);
+                delete rightSibling;
+                return;
+            }
+            delete rightSibling;
+        }
+
+        /* The merge function merges with left sibling, so if the child doesn't have left sibling (its index is 0),
+         * then merge the sibling with the child (the order of the parameters change)
+         * */
+        if (unbalancedNodeIdx == 0) {
+            return this->merge(unbalancedNodeIdx + 1);
+        } else {
+            return this->merge(unbalancedNodeIdx);
+        }
+    }
 }

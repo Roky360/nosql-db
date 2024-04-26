@@ -74,18 +74,7 @@ Document *Document::put(const string &key, const string &value) {
     }
 
     // get ancestor nodes and rebalance them if needed
-    vector<Node *> ancestorsNodes;
-    ancestorsNodes.push_back(rootNode);
-    Node *currNode = rootNode;
-    for (int i : ancestorsIndexes) {
-        currNode = this->dal->getNode(currNode->childNodes[i]);
-        if (!currNode) {
-            // TODO: THROW IO ERROR
-            cerr << "Uh error" << endl;
-            exit(1);
-        }
-        ancestorsNodes.push_back(currNode);
-    }
+    vector<Node *> ancestorsNodes = this->dal->getNodes(rootNode, ancestorsIndexes);
     ancestorsIndexes.insert(ancestorsIndexes.begin(), 0); // insert dummy value for root node
 
     // go through all ancestors from bottom to top and check if rebalancing is needed.
@@ -98,7 +87,7 @@ Document *Document::put(const string &key, const string &value) {
         }
     }
 
-    // check if root needs rebalancing
+    // balance root if needed
     if (this->dal->isNodeOverPopulated(rootNode)) {
         Node *newRoot = new Node();
         newRoot->dal = this->dal;
@@ -116,6 +105,51 @@ Document *Document::put(const string &key, const string &value) {
             this->dal->meta->root = newRoot->pageNum;
         }
         this->root = newRoot->pageNum;
+    }
+
+    return this;
+}
+
+Document *Document::remove(const string &key) {
+    Node *rootNode = this->dal->getNode(this->root);
+    if (rootNode == nullptr) {
+        // TODO: IO ERROR
+        cerr << "Uh error" << endl;
+        exit(1);
+    }
+
+    int itemIdx;
+    vector<int> ancestorsIndexes;
+    Node *itemNode = rootNode->findKey(key, &itemIdx, &ancestorsIndexes);
+    // if item to delete doesn't exist, do nothing and return
+    if (itemNode == nullptr) {
+        return this;
+    }
+
+    if (itemNode->isLeaf()) {
+        itemNode->removeItemFromLeaf(itemIdx);
+    } else {
+        vector<int> affectedNodes = itemNode->removeItemFromInternal(itemIdx);
+        ancestorsIndexes.insert(ancestorsIndexes.end(), affectedNodes.begin(), affectedNodes.end());
+    }
+
+    // get ancestor nodes and rebalance them if needed
+    vector<Node *> ancestorsNodes = this->dal->getNodes(rootNode, ancestorsIndexes);
+    ancestorsIndexes.insert(ancestorsIndexes.begin(), 0); // insert dummy value for root node
+
+    // balance ancestors if needed
+    for (int i = (int) ancestorsNodes.size() - 2; i >= 0; i--) {
+        Node *parentNode = ancestorsNodes[i];
+        Node *childNode = ancestorsNodes[i + 1];
+        int childIdx = ancestorsIndexes[i + 1];
+        if (this->dal->isNodeOverPopulated(childNode)) {
+            parentNode->rebalanceAfterRemove(childIdx);
+        }
+    }
+
+    // balance root if needed
+    if (rootNode->items.empty() && !rootNode->childNodes.empty()) {
+        this->root = ancestorsNodes[1]->pageNum;
     }
 
     return this;

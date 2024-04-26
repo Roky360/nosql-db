@@ -33,6 +33,13 @@ public:
      * @return This document
      */
     Document *put(const string &key, const string &value);
+
+    /**
+     * Removes a key-value pair from the document.
+     * @param key The key of the item to remove.
+     * @return This document
+     */
+    Document *remove(const string &key);
 };
 
 #endif //NOSQL_DB_DOCUMENT_H

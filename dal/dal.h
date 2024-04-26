@@ -33,7 +33,7 @@ namespace dal {
         Meta *meta;
         Options options;
 
-        explicit Dal(const string &path, Options& options=Options::defaultOptions);
+        explicit Dal(const string &path, Options &options = Options::defaultOptions);
 
         ~Dal();
 
@@ -54,6 +54,8 @@ namespace dal {
         bool readFreelist();
 
         Node *getNode(pgnum pageNum);
+
+        vector<Node *> getNodes(Node *root, const vector<int> &indexes);
 
         bool writeNode(Node *node);
 

@@ -41,6 +41,7 @@ namespace dal {
         /**
          * Writes all the provided nodes to the node's dal.
          * `this` excluded.
+         * * MUST pass nullptr as last argument
          */
         bool writeNodes(Node *first, ...) const;
 
@@ -48,6 +49,8 @@ namespace dal {
          * Deletes the node (marks its associated page as released in the freelist).
          */
         void deleteNode();
+
+        /* Get and Put Methods */
 
         /**
          * Finds a key in the node's items (performs binary search, since the keys in each node are sorted).
@@ -87,6 +90,53 @@ namespace dal {
          * @param nodeToSplitIdx The index of the node to split in this node's children list.
          */
         void split(Node *nodeToSplit, int nodeToSplitIdx);
+
+        /**
+         * Returns if an element can be safely removed from this node and it won't be under populated.
+         */
+        bool canSpareAnElement();
+
+        /* Deletion Methods */
+
+        /**
+         * Gets the biggest child of the left subtree.
+         * To access the predecessor itself: p->items[p->items.size() - 1]
+         */
+        Node *getPredecessor(int idx, vector<int> *affectedNodes=nullptr);
+
+        /**
+         * Gets the smallest child of the right subtree.
+         * To access the successor itself: p->items[0]
+         */
+        Node *getSuccessor(int idx, vector<int> *affectedNodes=nullptr);
+
+        void borrowFromLeft(int idx);
+
+        void borrowFromRight(int idx);
+
+        /**
+         * Removes item at `idx`. Assumes that this node is a leaf node.
+         */
+        void removeItemFromLeaf(int idx);
+
+        /**
+         * Removes item at `idx`. Assumes that this node is not a leaf node.
+         * @return Affected nodes - to be used later if the tree needs balancing.
+         */
+        vector<int> removeItemFromInternal(int idx);
+
+        /**
+         * Merges a child node at index `idx` to its left sibling.
+         * Deletes the node at `idx`.
+         */
+        void merge(int idx);
+
+        /**
+         * Rebalances a node after remove was performed.
+         * Decides weather to borrow an element from right or left sibling, or to perform merge.
+         * @param unbalancedNodeIdx Unbalanced node index in this node's children list.
+         */
+        void rebalanceAfterRemove(int unbalancedNodeIdx);
     };
 }
 

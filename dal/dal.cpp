@@ -6,7 +6,7 @@ using namespace std;
 
 namespace dal {
     Dal::Dal(const string &path, Options &options) : pageSize(options.pageSize), fl(new FreeList()),
-                                                           meta(new Meta()), options(options) {
+                                                     meta(new Meta()), options(options) {
         file.open(path, ios::in | ios::out | ios::binary);
         // file not exist, create new one
         if (!file.is_open()) {
@@ -151,6 +151,22 @@ namespace dal {
         n->dal = this;
         delete p;
         return n;
+    }
+
+    vector<Node *> Dal::getNodes(Node *root, const vector<int> &indexes) {
+        vector<Node *> nodes = {root};
+        Node *currNode = root;
+        for (int i: indexes) {
+            currNode = this->getNode(currNode->childNodes[i]);
+            if (!currNode) {
+                // TODO: THROW IO ERROR
+                cerr << "Uh error" << endl;
+                exit(1);
+            }
+            nodes.push_back(currNode);
+        }
+
+        return nodes;
     }
 
     bool Dal::writeNode(Node *node) {
