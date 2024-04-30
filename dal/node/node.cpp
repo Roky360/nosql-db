@@ -117,8 +117,10 @@ namespace dal {
     void Node::deleteNode() {
         this->dal->deleteNode(this);
     }
+#define BIN_SEARCH
 
     bool Node::findKeyInNode(const string &key, int *idx) {
+#ifdef BIN_SEARCH
         int leftPos = 0, rightPos = (int) this->items.size() - 1;
         int mid = 0, cmpRes = 1;
 
@@ -141,11 +143,33 @@ namespace dal {
 
         // item not found, return where it should be inserted, and `false` for not found
         if (cmpRes > 0) {
-            *idx = max(0, mid - 1);
+            *idx = mid;
+//            *idx = max(0, mid - 1);
         } else {
             *idx = mid + 1;
         }
         return false;
+#endif
+
+#ifndef BIN_SEARCH
+        int i;
+        for (i = 0; i < this->items.size(); i++) {
+            int res = this->items[i].key.compare(key);
+
+            if (res == 0) {
+                *idx = i;
+                return true;
+            }
+
+            if (res > 0) {
+                *idx = i;
+                return false;
+            }
+        }
+
+        *idx = i;
+        return false;
+#endif
     }
 
     Node *Node::findKey(const string &key, int *idx, vector<int> *ancestorsIndexes, bool exact) {
@@ -208,11 +232,7 @@ namespace dal {
     }
 
     void Node::split(Node *nodeToSplit, int nodeToSplitIdx) {
-        int splitIdx = this->dal->getSplitIndex(nodeToSplit);
-        if (splitIdx == -1) {
-            cerr << "Cannot split node " << nodeToSplit->pageNum << endl;
-            exit(1);
-        }
+        int splitIdx = this->dal->getSplitIndex(nodeToSplit, nullptr);
 
         NodeItem &middleItem = nodeToSplit->items[splitIdx];
         Node newNode;
@@ -241,7 +261,9 @@ namespace dal {
     }
 
     bool Node::canSpareAnElement() {
-        return this->dal->getSplitIndex(this) != -1;
+        bool canSpareElement;
+        this->dal->getSplitIndex(this, &canSpareElement);
+        return canSpareElement;
     }
 
     /* Deletion */
@@ -283,19 +305,25 @@ namespace dal {
     void Node::borrowFromLeft(int idx) {
         Node *child = this->dal->getNode(this->childNodes[idx]);
         Node *sibling = this->dal->getNode(this->childNodes[idx - 1]);
-        if (!child || !sibling)
-            throw runtime_error("Can't read nodes");
+        if (!child || !sibling) {
+            string err = "Can't read nodes ";
+            err += __FILE_NAME__;
+            err += ":";
+            err += to_string(__LINE__);
+            throw runtime_error(err);
+        }
 
-        child->items.insert(child->items.begin(), NodeItem());
-        child->items[0] = this->items[idx - 1];
+        child->items.insert(child->items.begin(), this->items[idx - 1]);
 
         // move the sibling's last child we are about to move to the parent, to child
         if (!child->isLeaf()) {
             child->childNodes.insert(child->childNodes.begin(),
                                      sibling->childNodes[sibling->childNodes.size() - 1]);
+            sibling->childNodes.pop_back();
         }
 
         this->items[idx - 1] = sibling->items[sibling->items.size() - 1];
+        sibling->items.pop_back();
 
         writeNodes(this, sibling, child, nullptr);
         delete child;
@@ -305,17 +333,24 @@ namespace dal {
     void Node::borrowFromRight(int idx) {
         Node *child = this->dal->getNode(this->childNodes[idx]);
         Node *sibling = this->dal->getNode(this->childNodes[idx + 1]);
-        if (!child || !sibling)
-            throw runtime_error("Can't read nodes");
+        if (!child || !sibling) {
+            string err = "Can't read nodes ";
+            err += __FILE_NAME__;
+            err += ":";
+            err += to_string(__LINE__);
+            throw runtime_error(err);
+        }
 
         child->items.push_back(this->items[idx]);
 
         // move the sibling's last child we are about to move to the parent, to child
         if (!child->isLeaf()) {
             child->childNodes.push_back(sibling->childNodes[0]);
+            sibling->childNodes.erase(sibling->childNodes.begin());
         }
 
         this->items[idx] = sibling->items[0];
+        sibling->items.erase(sibling->items.begin());
 
         writeNodes(this, sibling, child, nullptr);
         delete child;
@@ -328,7 +363,7 @@ namespace dal {
     }
 
     vector<int> Node::removeItemFromInternal(int idx) {
-        vector<int> affectedNodes;
+        vector<int> affectedNodes = {idx};
         Node *predecessor = getPredecessor(idx, &affectedNodes);
         this->items[idx] = predecessor->items[predecessor->items.size() - 1];
         predecessor->items.pop_back();
@@ -337,11 +372,16 @@ namespace dal {
         return affectedNodes;
     }
 
-    void Node::merge(int idx) {
+    Node *Node::merge(int idx) {
         Node *child = this->dal->getNode(this->childNodes[idx]);
         Node *sibling = this->dal->getNode(this->childNodes[idx - 1]);
-        if (!child || !sibling)
-            throw runtime_error("Can't read nodes");
+        if (!child || !sibling) {
+            string err = "Can't read nodes ";
+            err += __FILE_NAME__;
+            err += ":";
+            err += to_string(__LINE__);
+            throw runtime_error(err);
+        }
 
         // take item from the parent, put in sibling
         sibling->items.push_back(this->items[idx - 1]);
@@ -358,9 +398,11 @@ namespace dal {
 
         child->deleteNode();
         writeNodes(this, sibling, nullptr);
+        delete child;
+        return sibling;
     }
 
-    void Node::rebalanceAfterRemove(int unbalancedNodeIdx) {
+    Node * Node::rebalanceAfterRemove(int unbalancedNodeIdx) {
         // borrow from left
         if (unbalancedNodeIdx != 0) {
             Node *leftSibling = this->dal->getNode(this->childNodes[unbalancedNodeIdx - 1]);
@@ -370,7 +412,7 @@ namespace dal {
             if (leftSibling->canSpareAnElement()) {
                 borrowFromLeft(unbalancedNodeIdx);
                 delete leftSibling;
-                return;
+                return nullptr;
             }
             delete leftSibling;
         }
@@ -384,7 +426,7 @@ namespace dal {
             if (rightSibling->canSpareAnElement()) {
                 borrowFromRight(unbalancedNodeIdx);
                 delete rightSibling;
-                return;
+                return nullptr;
             }
             delete rightSibling;
         }

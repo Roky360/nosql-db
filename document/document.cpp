@@ -42,7 +42,7 @@ Document *Document::put(const string &key, const string &value) {
         bool success = this->dal->writeNode(rootNode);
         if (!success) {
             // TODO: THROW IO ERROR
-            cerr << "Uh error" << endl;
+            cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
             exit(1);
         }
         this->root = rootNode->pageNum;
@@ -52,7 +52,7 @@ Document *Document::put(const string &key, const string &value) {
         rootNode = this->dal->getNode(this->root);
         if (rootNode == nullptr) {
             // TODO: THROW IO ERROR
-            cerr << "Uh error" << endl;
+            cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
             exit(1);
         }
     }
@@ -69,7 +69,7 @@ Document *Document::put(const string &key, const string &value) {
     }
     if (!itemNode->write()) {
         // TODO: THROW IO ERROR
-        cerr << "Uh error" << endl;
+        cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
         exit(1);
     }
 
@@ -97,7 +97,7 @@ Document *Document::put(const string &key, const string &value) {
         // write new root
         if (!newRoot->write()) {
             // TODO: THROW IO ERROR
-            cerr << "Uh error" << endl;
+            cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
             exit(1);
         }
         // update root
@@ -114,7 +114,7 @@ Document *Document::remove(const string &key) {
     Node *rootNode = this->dal->getNode(this->root);
     if (rootNode == nullptr) {
         // TODO: IO ERROR
-        cerr << "Uh error" << endl;
+        cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
         exit(1);
     }
 
@@ -142,14 +142,21 @@ Document *Document::remove(const string &key) {
         Node *parentNode = ancestorsNodes[i];
         Node *childNode = ancestorsNodes[i + 1];
         int childIdx = ancestorsIndexes[i + 1];
-        if (this->dal->isNodeOverPopulated(childNode)) {
-            parentNode->rebalanceAfterRemove(childIdx);
+        if (this->dal->isNodeUnderPopulated(childNode)) {
+            Node *newChild = parentNode->rebalanceAfterRemove(childIdx);
+            if (newChild) { // if the rebalance function returned new child, replace it in the ancestors list
+                delete ancestorsNodes[i + 1];
+                ancestorsNodes[i + 1] = newChild;
+            }
         }
     }
 
     // balance root if needed
     if (rootNode->items.empty() && !rootNode->childNodes.empty()) {
+        rootNode->deleteNode();
         this->root = ancestorsNodes[1]->pageNum;
+        // TODO: CHANGE this \/
+        this->dal->meta->root = this->root;
     }
 
     return this;

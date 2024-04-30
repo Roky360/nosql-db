@@ -128,15 +128,17 @@ namespace dal {
         /**
          * Merges a child node at index `idx` to its left sibling.
          * Deletes the node at `idx`.
+         * @return The sibling node, as the child node is deleted.
          */
-        void merge(int idx);
+        Node *merge(int idx);
 
         /**
          * Rebalances a node after remove was performed.
          * Decides weather to borrow an element from right or left sibling, or to perform merge.
          * @param unbalancedNodeIdx Unbalanced node index in this node's children list.
+         * @return The node at index `unbalancedNodeIdx` or its sibling if it got merged to it (to be replaced in the ancestors list).
          */
-        void rebalanceAfterRemove(int unbalancedNodeIdx);
+        Node *rebalanceAfterRemove(int unbalancedNodeIdx);
     };
 }
 

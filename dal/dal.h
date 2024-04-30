@@ -77,7 +77,7 @@ namespace dal {
          * Returns the index in which `node` has enough children so its size is between the min and max threshold.
          * Else returns -1;
          */
-        int getSplitIndex(Node *node);
+        int getSplitIndex(Node *node, bool *canSpareAnElement=nullptr) const;
     };
 } // dal
 

@@ -1,4 +1,4 @@
-#include "Dal.h"
+#include "dal.h"
 #include <iostream>
 #include <cstdarg>
 
@@ -17,6 +17,7 @@ namespace dal {
                 exit(1);
             }
             file.close();
+            cout << "created" << endl;
             file.open(path, ios::in | ios::out | ios::binary);
 
             if (!file.is_open()) {
@@ -160,7 +161,7 @@ namespace dal {
             currNode = this->getNode(currNode->childNodes[i]);
             if (!currNode) {
                 // TODO: THROW IO ERROR
-                cerr << "Uh error" << endl;
+                cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
                 exit(1);
             }
             nodes.push_back(currNode);
@@ -223,17 +224,22 @@ namespace dal {
         return (float) node->size() < nodeMinThreshold();
     }
 
-    int Dal::getSplitIndex(Node *node) {
-        int size = 0;
+    int Dal::getSplitIndex(Node *node, bool *canSpareAnElement) const {
+        int size = 0, i;
         size += NODE_HEADER_SIZE;
+        if (canSpareAnElement) *canSpareAnElement = true;
 
-        for (int i = 0; i < node->items.size(); i++) {
+        for (i = 0; i < node->items.size() - 1; i++) {
             size += node->itemSize(i);
-            if ((float) size >= nodeMinThreshold() && i < node->items.size() - 1) {
+            if ((float) size >= nodeMinThreshold() && i < node->items.size() - 2) {
                 return i + 1;
             }
         }
-        return -1;
+        if (canSpareAnElement)
+            *canSpareAnElement = (float) size >= nodeMinThreshold();
+        // if the node cant spare an element, return the median index
+        return (int) node->items.size() / 2;
+//        return -1;
     }
 
 
