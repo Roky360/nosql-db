@@ -14,12 +14,18 @@ add_executable(nosql_db main.cpp
         dal/node/node.h
         db/db.cpp
         db/db.h
-        document/document.cpp
-        document/document.h
+        containers/document/document.cpp
+        containers/document/document.h
         utils/ioutils.cpp
         utils/ioutils.h
         config/config.h
         config/options.h
-        collection/collection.cpp
-        collection/collection.h
-        config/options.cpp)
+        containers/collection/collection.cpp
+        containers/collection/collection.h
+        config/options.cpp
+        utils/logging/logging.cpp
+        utils/logging/logging.h
+        db/tx/tx.cpp
+        db/tx/tx.h
+        containers/container/container.cpp
+        containers/container/container.h)

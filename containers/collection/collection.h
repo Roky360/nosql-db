@@ -2,7 +2,7 @@
 #define README_MD_COLLECTION_H
 
 #include <string>
-#include "../config/config.h"
+#include "../../config/config.h"
 
 using namespace std;
 
@@ -11,7 +11,7 @@ public:
     string name;
     pgnum root;     // page number of the root B-tree
 
-    explicit Collection(const string &name);
+    explicit Collection(string name);
 
     bytearray serialize(bytearray buf) const;
 

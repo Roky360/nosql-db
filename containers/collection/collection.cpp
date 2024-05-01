@@ -1,9 +1,11 @@
 #include "collection.h"
-#include "../utils/ioutils.h"
+
+#include <utility>
+#include "../../utils/ioutils.h"
 
 using namespace ioutils;
 
-Collection::Collection(const string &name) : name(name) {}
+Collection::Collection(string name) : name(std::move(name)) {}
 
 bytearray Collection::serialize(bytearray buf) const {
     size_t pos = 0;

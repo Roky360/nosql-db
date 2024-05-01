@@ -1,4 +1,5 @@
 #include "document.h"
+#include "../../utils/logging/logging.h"
 
 Document::Document() : root(0), dal(nullptr) {}
 
@@ -51,9 +52,7 @@ Document *Document::put(const string &key, const string &value) {
     } else {
         rootNode = this->dal->getNode(this->root);
         if (rootNode == nullptr) {
-            // TODO: THROW IO ERROR
-            cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
-            exit(1);
+            logError("Err");
         }
     }
     rootNode->dal = this->dal;
@@ -68,9 +67,7 @@ Document *Document::put(const string &key, const string &value) {
         itemNode->addItem(item, itemIdx);
     }
     if (!itemNode->write()) {
-        // TODO: THROW IO ERROR
-        cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
-        exit(1);
+        logError("Err");
     }
 
     // get ancestor nodes and rebalance them if needed
@@ -96,9 +93,7 @@ Document *Document::put(const string &key, const string &value) {
 
         // write new root
         if (!newRoot->write()) {
-            // TODO: THROW IO ERROR
-            cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
-            exit(1);
+            logError("Err");
         }
         // update root
         if (this->dal->meta->root == this->root) {
@@ -113,9 +108,7 @@ Document *Document::put(const string &key, const string &value) {
 Document *Document::remove(const string &key) {
     Node *rootNode = this->dal->getNode(this->root);
     if (rootNode == nullptr) {
-        // TODO: IO ERROR
-        cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
-        exit(1);
+        logError("Err");
     }
 
     int itemIdx;

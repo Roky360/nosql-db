@@ -2,6 +2,7 @@
 #include <cstdarg>
 #include "node.h"
 #include "../../utils/ioutils.h"
+#include "../../utils/logging/logging.h"
 
 using namespace ioutils;
 
@@ -306,11 +307,7 @@ namespace dal {
         Node *child = this->dal->getNode(this->childNodes[idx]);
         Node *sibling = this->dal->getNode(this->childNodes[idx - 1]);
         if (!child || !sibling) {
-            string err = "Can't read nodes ";
-            err += __FILE_NAME__;
-            err += ":";
-            err += to_string(__LINE__);
-            throw runtime_error(err);
+            logError("Cant read nodes");
         }
 
         child->items.insert(child->items.begin(), this->items[idx - 1]);
@@ -334,11 +331,7 @@ namespace dal {
         Node *child = this->dal->getNode(this->childNodes[idx]);
         Node *sibling = this->dal->getNode(this->childNodes[idx + 1]);
         if (!child || !sibling) {
-            string err = "Can't read nodes ";
-            err += __FILE_NAME__;
-            err += ":";
-            err += to_string(__LINE__);
-            throw runtime_error(err);
+            logError("Cant read nodes");
         }
 
         child->items.push_back(this->items[idx]);
@@ -376,11 +369,7 @@ namespace dal {
         Node *child = this->dal->getNode(this->childNodes[idx]);
         Node *sibling = this->dal->getNode(this->childNodes[idx - 1]);
         if (!child || !sibling) {
-            string err = "Can't read nodes ";
-            err += __FILE_NAME__;
-            err += ":";
-            err += to_string(__LINE__);
-            throw runtime_error(err);
+            logError("Cant read nodes");
         }
 
         // take item from the parent, put in sibling

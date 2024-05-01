@@ -2,11 +2,13 @@
 #include <algorithm>
 #include "dal/dal.h"
 #include "utils/ioutils.h"
-#include "document/document.h"
+#include "containers/document/document.h"
+#include "db/tx/tx.h"
 
 using namespace std;
 using namespace dal;
 using namespace ioutils;
+using namespace db;
 
 #ifndef DELETE_FILE
 #define DELETE_FILE
@@ -53,6 +55,7 @@ int main() {
         if (p->items.empty() && dal.meta->root != p->pageNum && find(dal.fl->releasedPages.begin(), dal.fl->releasedPages.end(), p->pageNum) == dal.fl->releasedPages.end())
             cout << "Empty page " << p->pageNum << endl;
     }
+
 
     dal.writeFreelist();
     dal.writeMeta();

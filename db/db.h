@@ -1,24 +1,50 @@
 #ifndef NOSQL_DB_DB_H
 #define NOSQL_DB_DB_H
 
+#include <shared_mutex>
 #include "../config/options.h"
 #include "../dal/Dal.h"
-#include "../collection/collection.h"
-#include "../document/document.h"
+#include "../containers/collection/collection.h"
+#include "../containers/document/document.h"
+#include "tx/tx.h"
 
 using namespace dal;
+using namespace std;
 
 namespace db {
-    class DB {
-        Dal *dal;
+    class Tx;
+    class ReadTx;
+    class WriteTx;
+    class SharedTx;
 
-        DB() = default;
+    class DB {
+    private:
+        SharedTx *defaultTx;
+    public:
+        Dal *dal;
+        shared_mutex rwlock; // read-write lock for transactions
+
+        DB();
 
         ~DB();
 
         void open(const string &path, Options& options=Options::defaultOptions);
 
         void close();
+
+        /* Transactions */
+        /**
+         * Opens a read transaction and returns it. All operations must be performed on the transaction itself.
+         * Once commit or rollback are performed, the lock is released.
+         * @note It is not allowed to perform write operations on read transactions.
+         */
+        ReadTx *readTransaction();
+
+        /**
+         * Opens a write transaction and returns it. All operations must be performed on the transaction itself.
+         * Once commit or rollback are performed, the lock is released.
+         */
+        WriteTx *writeTransaction();
 
         // planning of needed functions
         string createCollection(const string &name="");

@@ -2,8 +2,8 @@
 #define NOSQL_DB_DOCUMENT_H
 
 #include <string>
-#include "../config/config.h"
-#include "../dal/node/node.h"
+#include "../../config/config.h"
+#include "../../dal/node/node.h"
 
 using namespace std;
 using namespace dal;

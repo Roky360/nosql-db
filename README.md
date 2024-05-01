@@ -18,5 +18,6 @@ A No-SQL database built from scratch in C++.
   - `bytearray`
   - `array`
   - `datetime`
+- Listeners 🫢🫢
 - [ ] CMD interface for querying data
 
