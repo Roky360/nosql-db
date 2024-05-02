@@ -8,7 +8,7 @@ void logError(const string &msg, bool trowError) {
         cout << msg << endl;
 }
 
-void writeInReadTxError() {
+void throwWriteInReadTxError() {
     logError("Trying to perform write operation in read transaction.");
 }
 

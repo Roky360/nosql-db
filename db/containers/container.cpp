@@ -1,9 +1,9 @@
-#include "document.h"
+#include "containers.h"
 #include "../../utils/logging/logging.h"
 
-Document::Document() : root(0), dal(nullptr) {}
+Container::Container() : root(0), dal(nullptr), tx(nullptr) {}
 
-NodeItem *Document::serialize() const {
+NodeItem *Container::serialize() const {
     auto *item = new NodeItem();
     item->key = this->id;
     item->value = string();
@@ -12,14 +12,14 @@ NodeItem *Document::serialize() const {
     return item;
 }
 
-void Document::deserialize(NodeItem *item) {
+void Container::deserialize(NodeItem *item) {
     this->id = string(item->key);
     this->root = stoi(item->value);
 }
 
-NodeItem *Document::get(const string &key) const {
-    // get root
-    Node *rootNode = this->dal->getNode(this->root);
+NodeItem *Container::_get(const string &key) const {
+    // _get root
+    Node *rootNode = this->tx->getNode(this->root);
     if (rootNode == nullptr) {
         return nullptr;
     }
@@ -32,7 +32,7 @@ NodeItem *Document::get(const string &key) const {
     return &itemNode->items[itemIdx];
 }
 
-Document *Document::put(const string &key, const string &value) {
+Container *Container::_put(const string &key, const string &value) {
     NodeItem item(key, value);
 
     Node *rootNode;
@@ -40,22 +40,20 @@ Document *Document::put(const string &key, const string &value) {
     if (this->root == 0) {
         rootNode = new Node();
         rootNode->items.push_back(item);
-        bool success = this->dal->writeNode(rootNode);
+        bool success = this->tx->writeNode(rootNode);
         if (!success) {
-            // TODO: THROW IO ERROR
-            cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
-            exit(1);
+            logError("IO Error (err writing node)");
         }
         this->root = rootNode->pageNum;
-        delete rootNode;
         return this;
     } else {
-        rootNode = this->dal->getNode(this->root);
+        rootNode = this->tx->getNode(this->root);
         if (rootNode == nullptr) {
             logError("Err");
         }
     }
     rootNode->dal = this->dal;
+    rootNode->tx = this->tx;
 
     int itemIdx;
     vector<int> ancestorsIndexes;
@@ -70,8 +68,8 @@ Document *Document::put(const string &key, const string &value) {
         logError("Err");
     }
 
-    // get ancestor nodes and rebalance them if needed
-    vector<Node *> ancestorsNodes = this->dal->getNodes(rootNode, ancestorsIndexes);
+    // _get ancestor nodes and rebalance them if needed
+    vector<Node *> ancestorsNodes = this->_getNodes(ancestorsIndexes);
     ancestorsIndexes.insert(ancestorsIndexes.begin(), 0); // insert dummy value for root node
 
     // go through all ancestors from bottom to top and check if rebalancing is needed.
@@ -79,18 +77,18 @@ Document *Document::put(const string &key, const string &value) {
         Node *parentNode = ancestorsNodes[i];
         Node *childNode = ancestorsNodes[i + 1];
         int childIdx = ancestorsIndexes[i + 1];
-        if (this->dal->isNodeOverPopulated(childNode)) {
+        if (childNode->isOverPopulated()) {
             parentNode->split(childNode, childIdx);
         }
     }
 
     // balance root if needed
-    if (this->dal->isNodeOverPopulated(rootNode)) {
+    if (rootNode->isOverPopulated()) {
         Node *newRoot = new Node();
         newRoot->dal = this->dal;
+        newRoot->tx = this->tx;
         newRoot->childNodes.push_back(rootNode->pageNum);
         newRoot->split(rootNode, 0);
-
         // write new root
         if (!newRoot->write()) {
             logError("Err");
@@ -105,8 +103,8 @@ Document *Document::put(const string &key, const string &value) {
     return this;
 }
 
-Document *Document::remove(const string &key) {
-    Node *rootNode = this->dal->getNode(this->root);
+Container *Container::_remove(const string &key) {
+    Node *rootNode = this->tx->getNode(this->root);
     if (rootNode == nullptr) {
         logError("Err");
     }
@@ -126,8 +124,8 @@ Document *Document::remove(const string &key) {
         ancestorsIndexes.insert(ancestorsIndexes.end(), affectedNodes.begin(), affectedNodes.end());
     }
 
-    // get ancestor nodes and rebalance them if needed
-    vector<Node *> ancestorsNodes = this->dal->getNodes(rootNode, ancestorsIndexes);
+    // _get ancestor nodes and rebalance them if needed
+    vector<Node *> ancestorsNodes = this->_getNodes(ancestorsIndexes);
     ancestorsIndexes.insert(ancestorsIndexes.begin(), 0); // insert dummy value for root node
 
     // balance ancestors if needed
@@ -135,10 +133,10 @@ Document *Document::remove(const string &key) {
         Node *parentNode = ancestorsNodes[i];
         Node *childNode = ancestorsNodes[i + 1];
         int childIdx = ancestorsIndexes[i + 1];
-        if (this->dal->isNodeUnderPopulated(childNode)) {
+        if (childNode->isOverPopulated()) {
             Node *newChild = parentNode->rebalanceAfterRemove(childIdx);
             if (newChild) { // if the rebalance function returned new child, replace it in the ancestors list
-                delete ancestorsNodes[i + 1];
+//                delete ancestorsNodes[i + 1];
                 ancestorsNodes[i + 1] = newChild;
             }
         }
@@ -153,4 +151,22 @@ Document *Document::remove(const string &key) {
     }
 
     return this;
+}
+
+vector<Node *> Container::_getNodes(const vector<int> &indexes) {
+    Node *rootNode = this->tx->getNode(this->root);
+    if (!rootNode)
+        logError("Error reading node");
+
+    vector<Node *> nodes = {rootNode};
+    Node *currNode = rootNode;
+    for (int i: indexes) {
+        currNode = this->tx->getNode(currNode->childNodes[i]);
+        if (!currNode) {
+            logError("Error reading node");
+        }
+        nodes.push_back(currNode);
+    }
+
+    return nodes;
 }

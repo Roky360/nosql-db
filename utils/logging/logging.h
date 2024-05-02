@@ -7,6 +7,6 @@ using namespace std;
 
 void logError(const string &msg, bool trowError= true);
 
-void writeInReadTxError();
+void throwWriteInReadTxError();
 
 #endif //NOSQL_DB_LOGGING_H

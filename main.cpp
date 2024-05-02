@@ -1,13 +1,7 @@
 #include <iostream>
-#include <algorithm>
-#include "dal/dal.h"
-#include "utils/ioutils.h"
-#include "containers/document/document.h"
-#include "db/tx/tx.h"
+#include "db/db.h"
 
 using namespace std;
-using namespace dal;
-using namespace ioutils;
 using namespace db;
 
 #ifndef DELETE_FILE
@@ -23,43 +17,32 @@ int main() {
     Options options(Options::defaultOptions);
     options.minPageFillPercent = .0125;
     options.maxPageFillPercent = .025;
-    Dal dal(fileName, options);
+    DB db;
+    db.open(fileName, options);
 
-    auto d = new Document();
-    d->dal = &dal;
-    d->root = dal.meta->root;
-    d->id = "testDoc";
+    WriteTx *tx = db.writeTransaction();
+    Collection *c = tx->getCollection("testCollection");
+    auto d = c->document("doc1");
 
-    int cnt = 100;
-    for (int i = 1; i <= cnt; i++) {
+    for (int i = 1; i <= 5; i++)
         d->put("key" + to_string(i), "value" + to_string(i));
+    d->remove("key26");
+
+    tx->rollback();
+
+    tx = db.writeTransaction();
+    auto c2 = tx->getCollection("testCollection");
+    auto d2 = c2->document("doc1");
+    d2->put("key1", "value1");
+    auto item = d2->get("key1");
+    if (!item) {
+        cout << "note found" << endl;
+    } else {
+        cout << "val is: " << item->value << endl;
     }
 
-    for (int i = 1; i <= cnt; i+=3)
-        d->remove("key" + to_string(i));
-
-    // testing
-    for (int i = 1; i <= cnt; i++) {
-        string k = "key" + to_string(i);
-        auto res = d->get(k);
-        if (!res) {
-            cout << "not found!" << endl;
-        } else {
-            cout << "key: " << res->key << ", val: " << res->value << endl;
-        }
-    }
-
-    cout << endl;
-    for (int i = 2; i <= dal.fl->maxPage; i++) {
-        auto p = dal.getNode(i);
-        if (p->items.empty() && dal.meta->root != p->pageNum && find(dal.fl->releasedPages.begin(), dal.fl->releasedPages.end(), p->pageNum) == dal.fl->releasedPages.end())
-            cout << "Empty page " << p->pageNum << endl;
-    }
-
-
-    dal.writeFreelist();
-    dal.writeMeta();
-    delete d;
+    tx->commit();
+    db.close();
 
     return 0;
 }

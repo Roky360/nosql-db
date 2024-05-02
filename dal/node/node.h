@@ -3,6 +3,13 @@
 
 #include "../../config/config.h"
 #include "../Dal.h"
+#include "../../db/tx/tx.h"
+
+namespace db {
+    class Tx;
+}
+
+using namespace db;
 
 namespace dal {
     class Dal;
@@ -25,6 +32,7 @@ namespace dal {
         vector<NodeItem> items;
         vector<pgnum> childNodes;
         Dal *dal;
+        Tx *tx; // associated transaction
 
         Node();
 
@@ -83,6 +91,10 @@ namespace dal {
 
         int size();
 
+        bool isOverPopulated();
+
+        bool isUnderPopulated();
+
         /**
          * Splits `nodeToSplit` in case of it being unbalanced. `this` is the parent of `nodeToSplit`.
          * A new node is created, having half of the split node's values.
@@ -102,13 +114,13 @@ namespace dal {
          * Gets the biggest child of the left subtree.
          * To access the predecessor itself: p->items[p->items.size() - 1]
          */
-        Node *getPredecessor(int idx, vector<int> *affectedNodes=nullptr);
+        Node *getPredecessor(int idx, vector<int> *affectedNodes = nullptr);
 
         /**
          * Gets the smallest child of the right subtree.
          * To access the successor itself: p->items[0]
          */
-        Node *getSuccessor(int idx, vector<int> *affectedNodes=nullptr);
+        Node *getSuccessor(int idx, vector<int> *affectedNodes = nullptr);
 
         void borrowFromLeft(int idx);
 
@@ -133,7 +145,7 @@ namespace dal {
         Node *merge(int idx);
 
         /**
-         * Rebalances a node after remove was performed.
+         * Rebalances a node after _remove was performed.
          * Decides weather to borrow an element from right or left sibling, or to perform merge.
          * @param unbalancedNodeIdx Unbalanced node index in this node's children list.
          * @return The node at index `unbalancedNodeIdx` or its sibling if it got merged to it (to be replaced in the ancestors list).

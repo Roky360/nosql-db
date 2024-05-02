@@ -1,6 +1,7 @@
 #include "dal.h"
 #include <iostream>
 #include <cstdarg>
+#include "../utils/logging/logging.h"
 
 using namespace std;
 
@@ -17,7 +18,6 @@ namespace dal {
                 exit(1);
             }
             file.close();
-            cout << "created" << endl;
             file.open(path, ios::in | ios::out | ios::binary);
 
             if (!file.is_open()) {
@@ -26,7 +26,7 @@ namespace dal {
             }
 
             this->meta->freelistPage = getNextPageNum();
-            Node rootNode;
+            Node rootNode; // create collections tree root node
             if (!writeNode(&rootNode)) {
                 cerr << "Unable to create root node." << endl;
                 exit(1);
@@ -160,9 +160,7 @@ namespace dal {
         for (int i: indexes) {
             currNode = this->getNode(currNode->childNodes[i]);
             if (!currNode) {
-                // TODO: THROW IO ERROR
-                cerr << "Uh error " << __FILE_NAME__ << ":" << __LINE__ << endl;
-                exit(1);
+                logError("Err");
             }
             nodes.push_back(currNode);
         }

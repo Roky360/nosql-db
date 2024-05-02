@@ -11,7 +11,7 @@ namespace dal {
 
     pgnum FreeList::getNextPageNum() {
         if (!this->releasedPages.empty()) {
-            pgnum pnum = this->releasedPages[this->releasedPages.size()];
+            pgnum pnum = this->releasedPages[this->releasedPages.size() - 1];
             this->releasedPages.pop_back();
             return pnum;
         }

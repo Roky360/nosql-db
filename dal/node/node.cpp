@@ -7,6 +7,8 @@
 using namespace ioutils;
 
 namespace dal {
+    /* NodeItem */
+
     NodeItem::NodeItem() = default;
 
     NodeItem::NodeItem(const string &key, const string &value) : key(string(key)), value(string(value)) {}
@@ -15,7 +17,7 @@ namespace dal {
 
     /* Node */
 
-    Node::Node() : pageNum(0), dal(nullptr) {}
+    Node::Node() : pageNum(0), dal(nullptr), tx(nullptr) {}
 
     bool Node::isLeaf() const {
         return this->childNodes.empty();
@@ -80,7 +82,7 @@ namespace dal {
                 this->childNodes.push_back(readIntFromStream(buf, startPos));
             }
 
-            // get offset of the current key-value pair
+            // _get offset of the current key-value pair
             size_t offset = readIntFromStream<__int16>(buf, startPos);
             // read key
             char kLen = readIntFromStream<char>(buf, offset);
@@ -100,28 +102,33 @@ namespace dal {
     }
 
     Node *Node::get(pgnum pageNum) const {
-        return this->dal->getNode(pageNum);
+        return this->tx->getNode(pageNum);
     }
 
     bool Node::write() {
-        return this->dal->writeNode(this);
+        return this->tx->writeNode(this);
     }
 
     bool Node::writeNodes(Node *first, ...) const {
         va_list args;
         va_start(args, first);
-        bool res = this->dal->__writeNodes(first, args);
+        Node *n = first;
+        bool success = true;
+
+        while (n != nullptr) {
+            success = success && n->write();
+            n = va_arg(args, Node *);
+        }
+
         va_end(args);
-        return res;
+        return success;
     }
 
     void Node::deleteNode() {
-        this->dal->deleteNode(this);
+        this->tx->deleteNode(this);
     }
-#define BIN_SEARCH
 
     bool Node::findKeyInNode(const string &key, int *idx) {
-#ifdef BIN_SEARCH
         int leftPos = 0, rightPos = (int) this->items.size() - 1;
         int mid = 0, cmpRes = 1;
 
@@ -145,32 +152,10 @@ namespace dal {
         // item not found, return where it should be inserted, and `false` for not found
         if (cmpRes > 0) {
             *idx = mid;
-//            *idx = max(0, mid - 1);
         } else {
             *idx = mid + 1;
         }
         return false;
-#endif
-
-#ifndef BIN_SEARCH
-        int i;
-        for (i = 0; i < this->items.size(); i++) {
-            int res = this->items[i].key.compare(key);
-
-            if (res == 0) {
-                *idx = i;
-                return true;
-            }
-
-            if (res > 0) {
-                *idx = i;
-                return false;
-            }
-        }
-
-        *idx = i;
-        return false;
-#endif
     }
 
     Node *Node::findKey(const string &key, int *idx, vector<int> *ancestorsIndexes, bool exact) {
@@ -186,7 +171,7 @@ namespace dal {
 
         if (ancestorsIndexes)
             ancestorsIndexes->push_back(*idx);
-        Node *child = this->dal->getNode(this->childNodes[*idx]);
+        Node *child = this->tx->getNode(this->childNodes[*idx]);
         if (!child) {
             *idx = -1;
             return nullptr;
@@ -232,31 +217,41 @@ namespace dal {
         return size;
     }
 
+    bool Node::isOverPopulated() {
+        return this->dal->isNodeOverPopulated(this);
+    }
+
+    bool Node::isUnderPopulated() {
+        return this->dal->isNodeUnderPopulated(this);
+    }
+
+
     void Node::split(Node *nodeToSplit, int nodeToSplitIdx) {
         int splitIdx = this->dal->getSplitIndex(nodeToSplit, nullptr);
 
         NodeItem &middleItem = nodeToSplit->items[splitIdx];
-        Node newNode;
-        newNode.dal = this->dal;
+        Node *newNode = new Node();
+        newNode->dal = this->dal;
+        newNode->tx = this->tx;
 
         // create the new node and write it
         if (nodeToSplit->isLeaf()) {
-            newNode.items.assign(nodeToSplit->items.begin() + splitIdx + 1, nodeToSplit->items.end());
+            newNode->items.assign(nodeToSplit->items.begin() + splitIdx + 1, nodeToSplit->items.end());
             nodeToSplit->items.erase(nodeToSplit->items.begin() + splitIdx, nodeToSplit->items.end());
         } else {
             // move all items and children before the split index to the new node
-            newNode.items.assign(nodeToSplit->items.begin() + splitIdx + 1, nodeToSplit->items.end());
-            newNode.childNodes.assign(nodeToSplit->childNodes.begin() + splitIdx + 1, nodeToSplit->childNodes.end());
-            // remove those from the node to split
+            newNode->items.assign(nodeToSplit->items.begin() + splitIdx + 1, nodeToSplit->items.end());
+            newNode->childNodes.assign(nodeToSplit->childNodes.begin() + splitIdx + 1, nodeToSplit->childNodes.end());
+            // _remove those from the node to split
             nodeToSplit->items.erase(nodeToSplit->items.begin() + splitIdx, nodeToSplit->items.end());
             nodeToSplit->childNodes.erase(nodeToSplit->childNodes.begin() + splitIdx, nodeToSplit->childNodes.end());
         }
-        newNode.write();
+        newNode->write();
 
         // add item at split index to parent node
         this->addItem(middleItem, nodeToSplitIdx);
         // add new node as child of the parent node
-        this->childNodes.insert(this->childNodes.begin() + nodeToSplitIdx + 1, newNode.pageNum);
+        this->childNodes.insert(this->childNodes.begin() + nodeToSplitIdx + 1, newNode->pageNum);
 
         writeNodes(this, nodeToSplit, nullptr);
     }
@@ -270,14 +265,14 @@ namespace dal {
     /* Deletion */
 
     Node *Node::getPredecessor(int idx, vector<int> *affectedNodes) {
-        Node *cur = this->dal->getNode(this->childNodes[idx]);
+        Node *cur = this->tx->getNode(this->childNodes[idx]);
         if (!cur) {
             return nullptr;
         }
 
         while (!cur->isLeaf()) {
             int i = cur->childNodes.size() - 1;
-            cur = this->dal->getNode(cur->childNodes[i]);
+            cur = this->tx->getNode(cur->childNodes[i]);
             if (!cur)
                 return nullptr;
             if (affectedNodes)
@@ -287,14 +282,14 @@ namespace dal {
     }
 
     Node *Node::getSuccessor(int idx, vector<int> *affectedNodes) {
-        Node *cur = this->dal->getNode(this->childNodes[idx + 1]);
+        Node *cur = this->tx->getNode(this->childNodes[idx + 1]);
         if (!cur) {
             return nullptr;
         }
 
         while (!cur->isLeaf()) {
             int i = 0;
-            cur = this->dal->getNode(cur->childNodes[i]);
+            cur = this->tx->getNode(cur->childNodes[i]);
             if (!cur)
                 return nullptr;
             if (affectedNodes)
@@ -304,8 +299,8 @@ namespace dal {
     }
 
     void Node::borrowFromLeft(int idx) {
-        Node *child = this->dal->getNode(this->childNodes[idx]);
-        Node *sibling = this->dal->getNode(this->childNodes[idx - 1]);
+        Node *child = this->tx->getNode(this->childNodes[idx]);
+        Node *sibling = this->tx->getNode(this->childNodes[idx - 1]);
         if (!child || !sibling) {
             logError("Cant read nodes");
         }
@@ -323,13 +318,13 @@ namespace dal {
         sibling->items.pop_back();
 
         writeNodes(this, sibling, child, nullptr);
-        delete child;
-        delete sibling;
+//        delete child;
+//        delete sibling;
     }
 
     void Node::borrowFromRight(int idx) {
-        Node *child = this->dal->getNode(this->childNodes[idx]);
-        Node *sibling = this->dal->getNode(this->childNodes[idx + 1]);
+        Node *child = this->tx->getNode(this->childNodes[idx]);
+        Node *sibling = this->tx->getNode(this->childNodes[idx + 1]);
         if (!child || !sibling) {
             logError("Cant read nodes");
         }
@@ -346,8 +341,8 @@ namespace dal {
         sibling->items.erase(sibling->items.begin());
 
         writeNodes(this, sibling, child, nullptr);
-        delete child;
-        delete sibling;
+//        delete child;
+//        delete sibling;
     }
 
     void Node::removeItemFromLeaf(int idx) {
@@ -366,13 +361,13 @@ namespace dal {
     }
 
     Node *Node::merge(int idx) {
-        Node *child = this->dal->getNode(this->childNodes[idx]);
-        Node *sibling = this->dal->getNode(this->childNodes[idx - 1]);
+        Node *child = this->tx->getNode(this->childNodes[idx]);
+        Node *sibling = this->tx->getNode(this->childNodes[idx - 1]);
         if (!child || !sibling) {
             logError("Cant read nodes");
         }
 
-        // take item from the parent, put in sibling
+        // take item from the parent, _put in sibling
         sibling->items.push_back(this->items[idx - 1]);
         // move all items from child to sibling
         sibling->items.insert(sibling->items.end(), child->items.begin(), child->items.end());
@@ -381,7 +376,7 @@ namespace dal {
             sibling->childNodes.insert(sibling->childNodes.end(), child->childNodes.begin(), child->childNodes.end());
         }
 
-        // remove the item we took from parent, and the reference to child
+        // _remove the item we took from parent, and the reference to child
         this->childNodes.erase(this->childNodes.begin() + idx);
         this->items.erase(this->items.begin() + (idx - 1));
 
@@ -394,30 +389,29 @@ namespace dal {
     Node * Node::rebalanceAfterRemove(int unbalancedNodeIdx) {
         // borrow from left
         if (unbalancedNodeIdx != 0) {
-            Node *leftSibling = this->dal->getNode(this->childNodes[unbalancedNodeIdx - 1]);
+            Node *leftSibling = this->tx->getNode(this->childNodes[unbalancedNodeIdx - 1]);
             if (!leftSibling)
                 // TODO: IO ERROR
                 exit(1);
             if (leftSibling->canSpareAnElement()) {
                 borrowFromLeft(unbalancedNodeIdx);
-                delete leftSibling;
+//                delete leftSibling;
                 return nullptr;
             }
-            delete leftSibling;
+//            delete leftSibling;
         }
 
         // borrow from right
         if (unbalancedNodeIdx != this->childNodes.size() - 1) {
-            Node *rightSibling = this->dal->getNode(this->childNodes[unbalancedNodeIdx + 1]);
+            Node *rightSibling = this->tx->getNode(this->childNodes[unbalancedNodeIdx + 1]);
             if (!rightSibling)
-                // TODO: IO ERROR
-                exit(1);
+                logError("Can't read node");
             if (rightSibling->canSpareAnElement()) {
                 borrowFromRight(unbalancedNodeIdx);
-                delete rightSibling;
+//                delete rightSibling;
                 return nullptr;
             }
-            delete rightSibling;
+//            delete rightSibling;
         }
 
         /* The merge function merges with left sibling, so if the child doesn't have left sibling (its index is 0),
