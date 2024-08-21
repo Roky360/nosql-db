@@ -4,7 +4,7 @@ namespace db {
     DB::DB() : defaultTx(new SharedTx(this)), dal(nullptr) {}
 
     DB::~DB() {
-        delete dal;
+        close();
     }
 
     void DB::open(const string &path, Options &options) {

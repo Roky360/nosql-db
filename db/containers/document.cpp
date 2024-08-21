@@ -7,6 +7,16 @@ namespace db {
         return dynamic_cast<Container *>(this);
     }
 
+    void Document::_write() const {
+        auto rootD = this->parentCollection->_getRootDoc();
+        auto thisRaw = this->serialize();
+        rootD->_put(thisRaw->key, thisRaw->value);
+    }
+
+    uint64 Document::count() const {
+        return this->_elemCount;
+    }
+
     void Document::remove() {
         if (this->parentCollection)
             this->parentCollection->removeDoc(this->id);

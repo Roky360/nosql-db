@@ -2,6 +2,7 @@
 #define NOSQL_DB_IO_UTILS_H
 
 #include <vector>
+#include <string>
 #include "../config/config.h"
 
 using namespace std;
@@ -33,6 +34,12 @@ namespace ioutils {
         if (updatePos) fromPos += sizeof(T);
         return num;
     }
+
+    vector<string> split(const string& s, const string& delimiter);
+
+    string trim(string s);
+
+    string toLower(const string &s);
 }
 
 #endif //NOSQL_DB_IO_UTILS_H

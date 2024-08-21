@@ -1,20 +1,34 @@
 #include "containers.h"
 #include "../../utils/logging/logging.h"
+#include "../../utils/ioutils.h"
 
-Container::Container() : root(0), dal(nullptr), tx(nullptr) {}
+Container::Container() : root(0), _elemCount(0), dal(nullptr), tx(nullptr) {}
 
 NodeItem *Container::serialize() const {
     auto *item = new NodeItem();
     item->key = this->id;
     item->value = string();
-    item->value.append(to_string(this->root));
+    item->value.append(to_string(this->root)
+                       + "," + to_string(this->count()));
 
     return item;
 }
 
 void Container::deserialize(NodeItem *item) {
     this->id = string(item->key);
-    this->root = stoi(item->value);
+    vector<string> rawValues = ioutils::split(item->value, ",");
+    this->root = stoi(rawValues[0]);
+    this->_elemCount = stoi(rawValues[1]);
+}
+
+void Container::_incCount() {
+    this->_elemCount++;
+    this->_write();
+}
+
+void Container::_decCount() {
+    this->_elemCount--;
+    this->_write();
 }
 
 NodeItem *Container::_get(const string &key) const {
@@ -34,6 +48,7 @@ NodeItem *Container::_get(const string &key) const {
 
 Container *Container::_put(const string &key, const string &value) {
     NodeItem item(key, value);
+    bool newItem = false;
 
     Node *rootNode;
     // if root does not exist (on first insertion)
@@ -61,7 +76,8 @@ Container *Container::_put(const string &key, const string &value) {
 
     if (itemNode != nullptr && itemIdx < itemNode->items.size() && itemNode->items[itemIdx].key == key) {
         itemNode->items[itemIdx] = item;
-    } else {
+    } else { // new item - update count
+        newItem = true;
         itemNode->addItem(item, itemIdx);
     }
     if (!itemNode->write()) {
@@ -100,6 +116,8 @@ Container *Container::_put(const string &key, const string &value) {
         this->root = newRoot->pageNum;
     }
 
+    if (newItem)
+        this->_incCount();
     return this;
 }
 
@@ -150,6 +168,7 @@ Container *Container::_remove(const string &key) {
         this->dal->meta->root = this->root;
     }
 
+    this->_decCount();
     return this;
 }
 

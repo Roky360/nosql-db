@@ -9,6 +9,16 @@ namespace db {
         return dynamic_cast<Container *>(this);
     }
 
+    void Collection::_write() const {
+        auto rootC = this->tx->_getRootCollection();
+        auto thisRaw = this->serialize();
+        rootC->_put(thisRaw->key, thisRaw->value);
+    }
+
+    uint64 Collection::count() const {
+        return this->_elemCount;
+    }
+
     Document *Collection::_getRootDoc() {
         auto rootDoc = new Document();
         rootDoc->root = this->root;
@@ -72,6 +82,8 @@ namespace db {
     Collection *Collection::removeDoc(const string &name) {
         Document *rootDoc = _getRootDoc();
         rootDoc->_remove(name);
+
+        this->_elemCount--;
         return this;
     }
 }

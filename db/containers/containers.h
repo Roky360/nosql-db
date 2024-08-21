@@ -27,6 +27,7 @@ namespace db {
     public:
         string id;
         pgnum root;
+        uint64 _elemCount;
 
         Dal *dal;
         Tx *tx; // associated transaction
@@ -36,6 +37,18 @@ namespace db {
         virtual NodeItem *serialize() const;
 
         virtual void deserialize(NodeItem *item);
+
+        virtual void _write() const = 0;
+
+        /**
+         * Returns the number of elements stored under this container.
+         * @return
+         */
+        virtual uint64 count() const = 0;
+
+        void _incCount();
+
+        void _decCount();
 
         /**
          * Get an item in a document from given key.
@@ -48,6 +61,11 @@ namespace db {
          * @return This document
          */
         virtual Container *_put(const string &key, const string &value);
+
+        /**
+         * Deletes the resource itself.
+         */
+        virtual void remove() = 0;
 
         /**
          * Removes a key-value pair from the document.
@@ -69,10 +87,14 @@ namespace db {
 
         Container *toContainer();
 
+        void _write() const override;
+
+        uint64 count() const override;
+
         /**
          * Removes this document from its parent collection.
          */
-        void remove();
+        void remove() override;
 
         /**
          * Gets a key-value pair from a document.
@@ -102,6 +124,10 @@ namespace db {
 
         Container *toContainer();
 
+        void _write() const override;
+
+        uint64 count() const override;
+
         Document *_getRootDoc();
 
         Document *_newDoc(const string &id);
@@ -110,7 +136,7 @@ namespace db {
          * Deletes this collection.
          * If this collection doesn't exist in the database, it will do nothing.
          */
-        void remove();
+        void remove() override;
 
         /**
          * Returns a document in this collection with the provided name.

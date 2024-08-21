@@ -29,4 +29,16 @@ add_executable(nosql_db main.cpp
         db/tx/tx.h
         db/containers/container.cpp
         db/containers/container/container.h
+        cli/shmooshdb.cpp
+        cli/cli_manager/cli_manager.cpp
+        cli/cli_manager/CLIManager.h
+        cli/state_manager/DBStateManager.cpp
+        cli/state_manager/DBStateManager.h
+        cli/state_manager/PathEntry.h
+        cli/command_parser/CommandParser.cpp
+        cli/command_parser/CommandParser.h
+        cli/command_dispatcher/CommandDispatcher.cpp
+        cli/command_dispatcher/CommandDispatcher.h
+        cli/misc/ExecutionResult.h
+        cli/misc/Command.h
 )
