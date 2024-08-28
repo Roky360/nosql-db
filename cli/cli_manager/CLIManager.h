@@ -2,7 +2,7 @@
 #define NOSQL_DB_CLI_MANAGER_H
 
 #include <iostream>
-#include <stack>
+#include <queue>
 #include "../state_manager/DBStateManager.h"
 #include "../command_parser/CommandParser.h"
 #include "../command_dispatcher/CommandDispatcher.h"
@@ -10,6 +10,8 @@
 using namespace std;
 
 namespace cli {
+    typedef queue<string> CmdArgs;
+
     class CLIManager {
     public:
         string path;
@@ -25,7 +27,7 @@ namespace cli {
         void mainLoop();
 
     private:
-        static vector<string> handleInput();
+        static CmdArgs handleInput();
     };
 }
 

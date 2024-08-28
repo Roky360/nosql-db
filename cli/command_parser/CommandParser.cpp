@@ -1,6 +1,7 @@
 #include "CommandParser.h"
 #include "../misc/ExecutionResult.h"
 #include "../../utils/ioutils.h"
+#include "../cli_manager/CLIManager.h"
 
 using namespace ioutils;
 
@@ -18,111 +19,135 @@ namespace cli {
         };
     }
 
-    Command CommandParser::parseCommand(vector<string> tokens, ExecutionResult &result) {
-        // ignore empty queries
-        if (tokens.empty()) {
-            result = ExecutionResult(ResultStatus::OK);
-            return Command{CmdType::NOOP, vector<string>()};
+    vector<Command> CommandParser::parseCommands(CmdArgs *tokens, ExecutionResult &result) {
+        vector<Command> commands;
+        result = ExecutionResult(ResultStatus::OK);
+
+        while (!tokens->empty() && result.status == ResultStatus::OK) {
+            Command cmd = parseCommand(tokens, result);
+            commands.push_back(cmd);
         }
 
-        string cmdName = ioutils::toLower(tokens[0]);
+        return commands;
+    }
+
+    Command CommandParser::parseCommand(CmdArgs *tokens, ExecutionResult &result) {
+        // ignore empty queries
+        if (tokens->empty()) {
+            result = ExecutionResult(ResultStatus::OK);
+            return Command{CmdType::NOOP, {}};
+        }
+
+        string cmdName = ioutils::toLower(tokens->front());
+        tokens->pop();
         CmdType cmd = Command::typeFromString(cmdName);
-        vector<string> args = vector<string>(tokens.begin() + 1, tokens.end());
 
         // try to call the right parser
         auto parserFunc = cmdToParserMap.find(cmd);
         if (parserFunc != cmdToParserMap.end()) {
-            return (this->*(parserFunc->second))(args, result);
+            return (this->*(parserFunc->second))(tokens, result);
         }
         // command not found - return an error
         result = ExecutionResult(ResultStatus::ERROR, "Invalid command \"" + cmdName + "\".");
-        return Command{CmdType::NOOP, vector<string>()};
+        return Command{CmdType::NOOP, {}};
     }
 
-    Command CommandParser::parseClose(vector<string> args, ExecutionResult &result) {
+    Command CommandParser::parseClose(CmdArgs *args, ExecutionResult &result) {
         result = ExecutionResult(ResultStatus::EXIT);
-        return Command{CmdType::CLOSE, vector<string>()};
+        return Command{CmdType::CLOSE, {}};
     }
 
-    Command CommandParser::parseHelp(vector<string> args, ExecutionResult &result) {
+    Command CommandParser::parseHelp(CmdArgs *args, ExecutionResult &result) {
         string helpMsg = "help message\n";
         result = ExecutionResult(ResultStatus::OK, "", helpMsg);
-        return Command{CmdType::HELP, vector<string>{helpMsg}};
+        return Command{CmdType::HELP, {helpMsg}};
     }
 
-    Command CommandParser::parseCollection(vector<string> args, ExecutionResult &result) {
-        if (args.empty()) {
+    Command CommandParser::parseCollection(CmdArgs *args, ExecutionResult &result) {
+        if (args->empty()) {
             result = ExecutionResult(ResultStatus::ERROR, "Expected collection id.");
-            return Command{CmdType::NOOP, vector<string>()};
+            return Command{CmdType::NOOP, {}};
         }
         if (!this->stateManager->isAtTopLevel()) {
             result = ExecutionResult(ResultStatus::ERROR, "A collection can be entered only from the top-level.");
-            return Command{CmdType::NOOP, vector<string>()};
+            return Command{CmdType::NOOP, {}};
         }
 
         result = ExecutionResult(ResultStatus::OK);
-        return Command{CmdType::COLLECTION, args};
+        auto colId = args->front();
+        args->pop();
+        return Command{CmdType::COLLECTION, {colId}};
     }
 
-    Command CommandParser::parseDocument(vector<string> args, ExecutionResult &result) {
-        if (args.empty()) {
+    Command CommandParser::parseDocument(CmdArgs *args, ExecutionResult &result) {
+        if (args->empty()) {
             result = ExecutionResult(ResultStatus::ERROR, "Expected document id.");
-            return Command{CmdType::NOOP, vector<string>()};
+            return Command{CmdType::NOOP, {}};
         }
         if (!this->stateManager->isInCollection()) {
             result = ExecutionResult(ResultStatus::ERROR, "A document can be entered only from inside a collection.");
-            return Command{CmdType::NOOP, vector<string>()};
+            return Command{CmdType::NOOP, {}};
         }
 
         result = ExecutionResult(ResultStatus::OK);
-        return Command{CmdType::DOCUMENT, args};
+        auto docId = args->front();
+        args->pop();
+        return Command{CmdType::DOCUMENT, {docId}};
     }
 
-    Command CommandParser::parseGet(vector<string> args, ExecutionResult &result) {
-        if (args.empty()) {
+    Command CommandParser::parseGet(CmdArgs *args, ExecutionResult &result) {
+        if (args->empty()) {
             result = ExecutionResult(ResultStatus::ERROR, "Expected resource id.");
-            return Command{CmdType::NOOP, vector<string>()};
+            return Command{CmdType::NOOP, {}};
         }
         if (!this->stateManager->isInDocument()) {
             result = ExecutionResult(ResultStatus::ERROR, "Can get resources only from inside documents.");
-            return Command{CmdType::NOOP, vector<string>()};
+            return Command{CmdType::NOOP, {}};
         }
 
         result = ExecutionResult(ResultStatus::OK);
-        return Command{CmdType::GET, args};
+        auto resourceId = args->front();
+        args->pop();
+        return Command{CmdType::GET, {resourceId}};
     }
 
-    Command CommandParser::parsePut(vector<string> args, ExecutionResult &result) {
-        if (args.size() < 2) {
+    Command CommandParser::parsePut(CmdArgs *args, ExecutionResult &result) {
+        if (args->size() < 2) {
             result = ExecutionResult(ResultStatus::ERROR, "Expected resource id.");
             return Command{CmdType::NOOP, vector<string>()};
         }
         if (!this->stateManager->isInDocument()) {
             result = ExecutionResult(ResultStatus::ERROR, "Must be inside a document to use the `put` command.");
-            return Command{CmdType::NOOP, vector<string>()};
+            return Command{CmdType::NOOP, {}};
         }
 
         result = ExecutionResult(ResultStatus::OK);
-        return Command{CmdType::PUT, args};
+        auto key = args->front();
+        args->pop();
+        auto val = args->front();
+        args->pop();
+        return Command{CmdType::PUT, {key, val}};
     }
 
-    Command CommandParser::parseDelete(vector<string> args, ExecutionResult &result) {
-        if (args.empty()) {
+    Command CommandParser::parseDelete(CmdArgs *args, ExecutionResult &result) {
+        if (args->empty()) {
             result = ExecutionResult(ResultStatus::ERROR, "Expected resource id.");
             return Command{CmdType::NOOP, vector<string>()};
         }
         if (!(this->stateManager->isInCollection() || this->stateManager->isInDocument())) {
             result = ExecutionResult(ResultStatus::ERROR,
                                      "Must be inside a document or a collection to use the `delete` command.");
-            return Command{CmdType::NOOP, vector<string>()};
+            return Command{CmdType::NOOP, {}};
         }
 
         result = ExecutionResult(ResultStatus::OK);
-        return Command{CmdType::DELETE, args};
+        auto resourceId = args->front();
+        args->pop();
+        return Command{CmdType::DELETE, vector<string>{resourceId}};
     }
 
-    Command CommandParser::parseNavigateUp(vector<string> args, ExecutionResult &result) {
+    Command CommandParser::parseNavigateUp(CmdArgs *args, ExecutionResult &result) {
         result = ExecutionResult(ResultStatus::OK);
-        return Command{CmdType::NAV_UP, args};
+        return Command{CmdType::NAV_UP, {}};
     }
 } // cli

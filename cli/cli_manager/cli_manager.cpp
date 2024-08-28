@@ -28,44 +28,46 @@ namespace cli {
         while (active) {
             cout << this->stateManager->stateToString() << " >> ";
 
-            vector<string> tokens = handleInput();
+            CmdArgs tokens = handleInput();
             ExecutionResult result;
-            Command cmd = this->parser->parseCommand(tokens, result);
+            vector<Command> commands = this->parser->parseCommands(&tokens, result);
 
             if (result.status == ERROR) {
                 cout << result.message << endl;
             } else {
-                // all good, execute the command
-                result = this->dispatcher->execute(cmd);
+                // all good, execute the commands
+                for (Command cmd: commands) {
+                    result = this->dispatcher->execute(cmd);
 
-                switch (result.status) {
-                    case OK:
-                    case DELETED:
-                    case CREATED:
-                    case NOT_FOUND:
-                        if (!result.message.empty()) {
+                    switch (result.status) {
+                        case OK:
+                        case DELETED:
+                        case CREATED:
+                        case NOT_FOUND:
+                            if (!result.message.empty()) {
+                                cout << result.message << endl;
+                            }
+                            if (!result.result.empty()) {
+                                cout << result.result << endl;
+                            }
+                            break;
+                        case ERROR:
                             cout << result.message << endl;
-                        }
-                        if (!result.result.empty()) {
-                            cout << result.result << endl;
-                        }
-                        break;
-                    case ERROR:
-                        cout << result.message << endl;
-                        break;
-                    case FATAL:
-                        cout << result.message << endl;
-                        active = false;
-                        break;
-                    case EXIT:
-                        active = false;
-                        break;
+                            break;
+                        case FATAL:
+                            cout << result.message << endl;
+                            active = false;
+                            break;
+                        case EXIT:
+                            active = false;
+                            break;
+                    }
                 }
             }
         }
     }
 
-    vector<string> CLIManager::handleInput() {
+    CmdArgs CLIManager::handleInput() {
         vector<string> tokens;
         string line;
         string token;
@@ -83,6 +85,7 @@ namespace cli {
             }
         }
 
-        return tokens;
+        CmdArgs args(tokens.begin(), tokens.end());
+        return args;
     }
 }

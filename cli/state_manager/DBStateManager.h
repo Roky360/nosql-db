@@ -26,7 +26,9 @@ namespace cli {
         void enterDocument(Document *docRef);
 
         bool isInCollection();
+
         bool isInDocument();
+
         bool isAtTopLevel();
     };
 
