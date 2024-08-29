@@ -11,7 +11,7 @@ namespace cli {
         this->db = new DB();
         this->db->open(path);
         this->stateManager = new DBStateManager(ioutils::split(this->path, "/").back(), this->db);
-        this->parser = new CommandParser(this->stateManager);
+        this->parser = new CommandParser();
         this->dispatcher = new CommandDispatcher(this->stateManager);
     }
 

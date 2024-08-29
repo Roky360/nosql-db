@@ -6,7 +6,7 @@
 using namespace ioutils;
 
 namespace cli {
-    CommandParser::CommandParser(DBStateManager *dbStateManager) : stateManager(dbStateManager) {
+    CommandParser::CommandParser() {
         cmdToParserMap = {
                 {CLOSE,      &CommandParser::parseClose},
                 {HELP,       &CommandParser::parseHelp},
@@ -16,6 +16,7 @@ namespace cli {
                 {PUT,        &CommandParser::parsePut},
                 {DELETE,     &CommandParser::parseDelete},
                 {NAV_UP,     &CommandParser::parseNavigateUp},
+                {NAV_TO_TOP, &CommandParser::parseNavigateToTop},
         };
     }
 
@@ -58,18 +59,13 @@ namespace cli {
     }
 
     Command CommandParser::parseHelp(CmdArgs *args, ExecutionResult &result) {
-        string helpMsg = "help message\n";
-        result = ExecutionResult(ResultStatus::OK, "", helpMsg);
-        return Command{CmdType::HELP, {helpMsg}};
+        result = ExecutionResult(ResultStatus::OK);
+        return Command{CmdType::HELP, {}};
     }
 
     Command CommandParser::parseCollection(CmdArgs *args, ExecutionResult &result) {
         if (args->empty()) {
             result = ExecutionResult(ResultStatus::ERROR, "Expected collection id.");
-            return Command{CmdType::NOOP, {}};
-        }
-        if (!this->stateManager->isAtTopLevel()) {
-            result = ExecutionResult(ResultStatus::ERROR, "A collection can be entered only from the top-level.");
             return Command{CmdType::NOOP, {}};
         }
 
@@ -84,10 +80,6 @@ namespace cli {
             result = ExecutionResult(ResultStatus::ERROR, "Expected document id.");
             return Command{CmdType::NOOP, {}};
         }
-        if (!this->stateManager->isInCollection()) {
-            result = ExecutionResult(ResultStatus::ERROR, "A document can be entered only from inside a collection.");
-            return Command{CmdType::NOOP, {}};
-        }
 
         result = ExecutionResult(ResultStatus::OK);
         auto docId = args->front();
@@ -98,10 +90,6 @@ namespace cli {
     Command CommandParser::parseGet(CmdArgs *args, ExecutionResult &result) {
         if (args->empty()) {
             result = ExecutionResult(ResultStatus::ERROR, "Expected resource id.");
-            return Command{CmdType::NOOP, {}};
-        }
-        if (!this->stateManager->isInDocument()) {
-            result = ExecutionResult(ResultStatus::ERROR, "Can get resources only from inside documents.");
             return Command{CmdType::NOOP, {}};
         }
 
@@ -115,10 +103,6 @@ namespace cli {
         if (args->size() < 2) {
             result = ExecutionResult(ResultStatus::ERROR, "Expected resource id.");
             return Command{CmdType::NOOP, vector<string>()};
-        }
-        if (!this->stateManager->isInDocument()) {
-            result = ExecutionResult(ResultStatus::ERROR, "Must be inside a document to use the `put` command.");
-            return Command{CmdType::NOOP, {}};
         }
 
         result = ExecutionResult(ResultStatus::OK);
@@ -134,11 +118,6 @@ namespace cli {
             result = ExecutionResult(ResultStatus::ERROR, "Expected resource id.");
             return Command{CmdType::NOOP, vector<string>()};
         }
-        if (!(this->stateManager->isInCollection() || this->stateManager->isInDocument())) {
-            result = ExecutionResult(ResultStatus::ERROR,
-                                     "Must be inside a document or a collection to use the `delete` command.");
-            return Command{CmdType::NOOP, {}};
-        }
 
         result = ExecutionResult(ResultStatus::OK);
         auto resourceId = args->front();
@@ -149,5 +128,10 @@ namespace cli {
     Command CommandParser::parseNavigateUp(CmdArgs *args, ExecutionResult &result) {
         result = ExecutionResult(ResultStatus::OK);
         return Command{CmdType::NAV_UP, {}};
+    }
+
+    Command CommandParser::parseNavigateToTop(CmdArgs *args, ExecutionResult &result) {
+        result = ExecutionResult(ResultStatus::OK);
+        return Command{CmdType::NAV_TO_TOP, {}};
     }
 } // cli

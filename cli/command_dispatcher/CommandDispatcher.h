@@ -26,6 +26,7 @@ namespace cli {
         ExecutionResult executePut(const Command& cmd);
         ExecutionResult executeDelete(const Command& cmd);
         ExecutionResult executeNavigateUp(const Command& cmd);
+        ExecutionResult executeNavigateToTop(const Command& cmd);
     };
 
 } // cli

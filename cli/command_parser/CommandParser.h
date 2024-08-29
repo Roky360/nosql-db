@@ -18,10 +18,8 @@ namespace cli {
     private:
         unordered_map<CmdType, Command (CommandParser::*)(CmdArgs *, ExecutionResult &)> cmdToParserMap;
 
-        DBStateManager *stateManager;
-
     public:
-        CommandParser(DBStateManager *dbStateManager);
+        CommandParser();
 
         vector<Command> parseCommands(CmdArgs *tokens, ExecutionResult &result);
         Command parseCommand(CmdArgs *tokens, ExecutionResult &result);
@@ -35,6 +33,7 @@ namespace cli {
         Command parsePut(CmdArgs *args, ExecutionResult &result);
         Command parseDelete(CmdArgs *args, ExecutionResult &result);
         Command parseNavigateUp(CmdArgs *args, ExecutionResult &result);
+        Command parseNavigateToTop(CmdArgs *args, ExecutionResult &result);
 
 
     };

@@ -12,6 +12,7 @@ namespace cli {
                 {PUT,        &CommandDispatcher::executePut},
                 {DELETE,     &CommandDispatcher::executeDelete},
                 {NAV_UP,     &CommandDispatcher::executeNavigateUp},
+                {NAV_TO_TOP, &CommandDispatcher::executeNavigateToTop},
         };
     }
 
@@ -33,10 +34,14 @@ namespace cli {
     }
 
     ExecutionResult CommandDispatcher::executeHelp(const Command &cmd) {
-        return ExecutionResult{ResultStatus::OK, cmd.args[0]};
+        return ExecutionResult{ResultStatus::OK, COMMANDS_HELP_MESSAGE};
     }
 
     ExecutionResult CommandDispatcher::executeCollection(const Command &cmd) {
+        if (!this->stateManager->isAtTopLevel()) {
+            return ExecutionResult{ResultStatus::ERROR, "A collection can be entered only from the top-level."};
+        }
+
         auto entry = FilePathEntry::cast(this->stateManager->getTopLevel());
         DB *db = entry->db;
 
@@ -48,6 +53,10 @@ namespace cli {
     }
 
     ExecutionResult CommandDispatcher::executeDocument(const Command &cmd) {
+        if (!this->stateManager->isInCollection()) {
+            return ExecutionResult{ResultStatus::ERROR, "A document can be entered only from inside a collection."};
+        }
+
         auto entry = CollectionPathEntry::cast(this->stateManager->getTopLevel());
         Collection *col = entry->colRef;
 
@@ -58,6 +67,10 @@ namespace cli {
     }
 
     ExecutionResult CommandDispatcher::executeGet(const Command &cmd) {
+        if (!this->stateManager->isInDocument()) {
+            return ExecutionResult{ResultStatus::ERROR, "Can get resources only from inside documents."};
+        }
+
         auto entry = DocumentPathEntry::cast(this->stateManager->getTopLevel());
         auto doc = entry->docRef;
 
@@ -71,6 +84,10 @@ namespace cli {
     }
 
     ExecutionResult CommandDispatcher::executePut(const Command &cmd) {
+        if (!this->stateManager->isInDocument()) {
+            return ExecutionResult{ResultStatus::ERROR, "Must be inside a document to use the `put` command."};
+        }
+
         auto entry = DocumentPathEntry::cast(this->stateManager->getTopLevel());
         auto doc = entry->docRef;
 
@@ -108,6 +125,11 @@ namespace cli {
         if (newEntry == nullptr) {
             return ExecutionResult{ResultStatus::NOT_FOUND};
         }
+        return ExecutionResult{ResultStatus::OK};
+    }
+
+    ExecutionResult CommandDispatcher::executeNavigateToTop(const Command &cmd) {
+        while (this->stateManager->navigateUp() != nullptr);
         return ExecutionResult{ResultStatus::OK};
     }
 
